@@ -1,0 +1,101 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [postgis]
+}
+
+enum Role {
+  user
+  admin
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  nama      String
+  email     String     @unique
+  googleId  String?    @unique @map("google_id")
+  avatarUrl String?    @map("avatar_url")
+  role      Role       @default(user)
+  createdAt DateTime   @default(now()) @map("created_at")
+  reviews   Review[]
+  favorites Favorite[]
+  @@map("users")
+}
+
+model Hotel {
+  id        Int        @id @default(autoincrement())
+  nama      String
+  alamat    String?
+  kecamatan String?
+  bintang   Int        @default(0)
+  hargaMin  Int?       @map("harga_min")
+  hargaMax  Int?       @map("harga_max")
+  telepon   String?
+  website   String?
+  deskripsi String?
+  ratingAvg Decimal    @default(0) @db.Decimal(2, 1) @map("rating_avg")
+  lat       Float
+  lng       Float
+  // geom diisi otomatis oleh trigger (lihat postgis_extra.sql)
+  geom      Unsupported("geometry(Point,4326)")?
+  reviews   Review[]
+  favorites Favorite[]
+  photos    HotelPhoto[]
+  facilities HotelFacility[]
+  @@index([geom], type: Gist)
+  @@map("hotels")
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  hotelId   Int      @map("hotel_id")
+  userId    Int      @map("user_id")
+  rating    Int
+  komentar  String?
+  createdAt DateTime @default(now()) @map("created_at")
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+  @@unique([userId, hotelId])
+  @@map("reviews")
+}
+
+model Favorite {
+  userId  Int   @map("user_id")
+  hotelId Int   @map("hotel_id")
+  user    User  @relation(fields: [userId], references: [id])
+  hotel   Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  @@id([userId, hotelId])
+  @@map("favorites")
+}
+
+model HotelPhoto {
+  id        Int      @id @default(autoincrement())
+  hotelId   Int      @map("hotel_id")
+  url       String
+  publicId  String?  @map("public_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  @@map("hotel_photos")
+}
+
+model Facility {
+  id     Int             @id @default(autoincrement())
+  nama   String          @unique
+  hotels HotelFacility[]
+  @@map("facilities")
+}
+
+model HotelFacility {
+  hotelId    Int      @map("hotel_id")
+  facilityId Int      @map("facility_id")
+  hotel      Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  facility   Facility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  @@id([hotelId, facilityId])
+  @@map("hotel_facilities")
+}
